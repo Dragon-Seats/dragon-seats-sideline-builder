@@ -1,0 +1,1083 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sideline Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: one-screen tool. Top bar, then library | field | details. Stacks on phones. */
+:root {
+  --bg: #e9eeeb;
+  --panel: #ffffff;
+  --ink: #17201b;
+  --muted: #5a675f;
+  --line: #d3dbd6;
+  --chip: #f1f5f2;
+  --accent: #d9480f;
+  --accent-ink: #ffffff;
+  --focus: #1c7ed6;
+  --danger: #c92a2a;
+  --canvas: #23302a;
+  --font-display: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111613; --panel: #1a211d; --ink: #e5ebe7; --muted: #97a59d; --line: #2c3631;
+    --chip: #222b26; --accent: #ff7333; --accent-ink: #1a0a02; --focus: #4dabf7; --danger: #ff6b6b; --canvas: #1b2621;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111613; --panel: #1a211d; --ink: #e5ebe7; --muted: #97a59d; --line: #2c3631;
+  --chip: #222b26; --accent: #ff7333; --accent-ink: #1a0a02; --focus: #4dabf7; --danger: #ff6b6b; --canvas: #1b2621;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px; box-sizing: border-box;
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
+
+/* Top bar */
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.brand { font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: .02em; text-transform: uppercase; margin-right: 4px; }
+.name { min-width: 0; width: 230px; max-width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-weight: 600; }
+.dirty { font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.grp { display: flex; align-items: center; gap: 6px; position: relative; }
+.btn { padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-weight: 500; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.sel { padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+.seg button { border: 0; background: transparent; padding: 7px 11px; white-space: nowrap; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.spacer { flex: 1; }
+
+.pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: 320px; max-width: calc(100vw - 32px); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 6px; display: grid; gap: 2px; max-height: 70vh; overflow: auto; }
+.pop-row { text-align: left; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; }
+.pop-row:hover { background: var(--chip); }
+.pop-h { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 10px 10px 4px; }
+.pop-item { display: flex; gap: 4px; align-items: stretch; }
+.pop-item .pop-row { flex: 1; min-width: 0; }
+.pop-item small { display: block; color: var(--muted); font-size: 12px; }
+.pop-item .x { border: 0; background: transparent; color: var(--muted); padding: 0 10px; border-radius: 6px; font-size: 12px; }
+.pop-item .x:hover { color: var(--danger); background: var(--chip); }
+.pop-note { font-size: 12px; color: var(--muted); padding: 8px 10px; }
+.warn { color: var(--danger); font-weight: 600; }
+
+/* Main */
+.main { display: grid; grid-template-columns: 176px minmax(0, 1fr) 292px; gap: 10px; min-height: 0; }
+.lib, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: auto; min-height: 0; }
+.lib { padding: 10px; display: flex; flex-direction: column; gap: 12px; }
+.lib-group { display: grid; gap: 4px; }
+.lib-h, .p-h { font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.lib-btn { display: flex; align-items: center; gap: 8px; text-align: left; padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; background: var(--chip); touch-action: none; user-select: none; }
+.lib-btn:hover { border-color: var(--line); }
+.lib-btn[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.sw { width: 14px; height: 14px; border-radius: 3px; flex: none; border: 1px solid rgba(0,0,0,.35); }
+.sw.round { border-radius: 50%; }
+.lib-tip { font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+.stage { position: relative; min-height: 0; border-radius: 8px; overflow: hidden; background: var(--canvas); }
+.stage svg { width: 100%; height: 100%; display: block; touch-action: none; user-select: none; }
+.stage.connecting svg { cursor: crosshair; }
+.views { position: absolute; top: 10px; left: 10px; z-index: 2; max-width: calc(100% - 20px); overflow-x: auto; }
+.hint { position: absolute; top: 54px; left: 10px; right: 10px; pointer-events: none; display: flex; }
+.hint span { background: rgba(10,16,12,.82); color: #f1f5f2; padding: 6px 10px; border-radius: 6px; font-size: 13px; max-width: 100%; }
+.zoom { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 4px; }
+.zoom button { min-width: 36px; height: 34px; border-radius: 6px; border: 1px solid rgba(255,255,255,.2); background: rgba(10,16,12,.82); color: #f1f5f2; font-weight: 600; }
+.toast { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: #f8f9fa; color: #111; padding: 8px 14px; border-radius: 6px; font-weight: 500; box-shadow: 0 6px 20px rgba(0,0,0,.3); max-width: calc(100% - 120px); text-align: center; }
+
+.panel { padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+.p-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.1; text-wrap: balance; display: flex; align-items: center; gap: 8px; }
+.p-sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.f { display: grid; gap: 4px; }
+.f label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.f input, .f select, .f textarea { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.f textarea { min-height: 96px; resize: vertical; line-height: 1.4; }
+.f .help { font-size: 12px; color: var(--muted); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.btn.danger { color: var(--danger); }
+.stat { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-variant-numeric: tabular-nums; }
+.stat div:nth-child(even) { text-align: right; font-weight: 600; }
+.empty { color: var(--muted); font-size: 13px; }
+.notes-list { display: grid; gap: 6px; }
+.note-btn { display: grid; grid-template-columns: 22px 1fr; gap: 8px; text-align: left; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 7px 8px; }
+.note-btn b { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #ffd43b; color: #111; font-size: 12px; }
+.note-btn span { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.note-btn small { display: block; color: var(--muted); }
+.conn-list { display: grid; gap: 4px; }
+.conn-btn { display: flex; gap: 8px; align-items: center; text-align: left; border: 0; background: var(--chip); border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+.conn-btn i { width: 18px; height: 4px; border-radius: 2px; flex: none; }
+.legend { display: grid; gap: 6px; font-size: 13px; }
+.legend div { display: flex; align-items: center; gap: 8px; }
+.legend svg { flex: none; }
+.how { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+
+.ghost { position: fixed; z-index: 50; pointer-events: none; padding: 6px 10px; border-radius: 6px; background: var(--ink); color: var(--panel); font-weight: 600; transform: translate(-50%, -130%); }
+.overlay { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.6); display: grid; place-items: center; padding: 20px; }
+.overlay-card { background: var(--panel); border-radius: 10px; padding: 14px; max-width: min(1100px, 100%); max-height: 100%; overflow: auto; display: grid; gap: 10px; }
+.overlay-card img { width: 100%; height: auto; border-radius: 6px; }
+
+@media (max-width: 1150px) { .main { grid-template-columns: 152px minmax(0, 1fr) 260px; } }
+@media (max-width: 900px) {
+  html, body { height: auto; }
+  .app { height: auto; grid-template-rows: auto auto; }
+  .main { grid-template-columns: minmax(0, 1fr); }
+  .lib { flex-direction: row; overflow-x: auto; overflow-y: hidden; gap: 14px; }
+  .lib-group { grid-auto-flow: column; grid-template-rows: auto auto; align-content: start; }
+  .lib-group .lib-h { grid-row: 1; }
+  .lib-tip { display: none; }
+  .stage { height: 64vh; min-height: 360px; }
+  .name { width: 100%; }
+}
+@media (prefers-reduced-motion: no-preference) { .btn, .lib-btn, .pop-row { transition: border-color .12s, background-color .12s; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand">Sideline Planner</div>
+    <input id="layout-name" class="name" aria-label="Layout name" placeholder="Layout name">
+    <span id="dirty" class="dirty" hidden>Unsaved</span>
+    <div class="grp">
+      <button id="btn-layouts" class="btn" aria-haspopup="true" aria-expanded="false">Layouts ▾</button>
+      <div id="layouts-pop" class="pop" hidden></div>
+      <button id="btn-save" class="btn primary">Save</button>
+    </div>
+    <div class="grp">
+      <button id="btn-undo" class="btn" title="Undo (Ctrl+Z)">Undo</button>
+      <button id="btn-redo" class="btn" title="Redo (Ctrl+Shift+Z)">Redo</button>
+    </div>
+    <div class="grp">
+      <button id="btn-connect" class="btn" aria-pressed="false" title="Draw a hose or cord between two items (C)">Draw hose / cord</button>
+      <select id="conn-kind" class="sel" aria-label="Connection type"></select>
+    </div>
+    <div class="spacer"></div>
+    <button id="btn-export" class="btn">Export image</button>
+  </header>
+
+  <div class="main">
+    <aside class="lib" id="lib" aria-label="Equipment library"></aside>
+    <section class="stage" id="stage">
+      <div class="seg views" id="view-seg" role="group" aria-label="Which sideline to show"></div>
+      <svg id="svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-label="Football field layout"><g id="scene"></g></svg>
+      <div class="hint" id="hint" hidden><span id="hint-text"></span></div>
+      <div class="zoom">
+        <button id="z-out" aria-label="Zoom out">−</button>
+        <button id="z-in" aria-label="Zoom in">+</button>
+        <button id="z-fit">Fit</button>
+      </div>
+      <div class="toast" id="toast" hidden></div>
+    </section>
+    <aside class="panel" id="panel" aria-label="Details"></aside>
+  </div>
+</div>
+<div class="ghost" id="ghost" hidden></div>
+<div class="overlay" id="img-overlay" hidden>
+  <div class="overlay-card">
+    <div class="acts" style="justify-content:space-between;align-items:center">
+      <strong>Right-click or long-press the image to save it.</strong>
+      <button class="btn" id="img-close">Close</button>
+    </div>
+    <img id="img-out" alt="Exported sideline layout">
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+// ---------- Constants (all distances in feet; x = 0 at left goal line) ----------
+const CUT_L = 75, CUT_R = 225;          // 25-yard lines
+const FIELD_W = 160;                     // sideline to sideline
+const SVG_FONT = "Barlow Condensed, Arial Narrow, Arial, sans-serif";
+const SELC = "#74c0fc";
+
+const CATS = {
+  heat:   { fill: "#e8590c", stroke: "#7a2700", text: "#ffffff" },
+  cool:   { fill: "#1971c2", stroke: "#0a3a66", text: "#ffffff" },
+  power:  { fill: "#f2b705", stroke: "#6e5200", text: "#1b1b1b" },
+  gas:    { fill: "#a61e2d", stroke: "#4f0d15", text: "#ffffff" },
+  seat:   { fill: "#1f2326", stroke: "#000000", text: "#ffffff" },
+  fit:    { fill: "#f1f3f5", stroke: "#212529", text: "#1b1b1b" },
+  team:   { fill: "#8d969e", stroke: "#3b4146", text: "#ffffff" },
+  custom: { fill: "#6741d9", stroke: "#2c176f", text: "#ffffff" },
+  text:   { fill: "none",    stroke: "none",    text: "#ffffff" }
+};
+const TYPES = {
+  ds170:      { name: "DS-170", w: 3, h: 3, cat: "heat" },
+  ds350:      { name: "DS-350", w: 4, h: 4, cat: "heat" },
+  modheat:    { name: "Modulating Heater", short: "Mod Heater", w: 4, h: 3, cat: "heat" },
+  ac:         { name: "AC Cooling", w: 4, h: 6, cat: "cool" },
+  compressor: { name: "Compressor", w: 4, h: 4, cat: "cool" },
+  powerbox:   { name: "Power Box", w: 2.5, h: 2.5, cat: "power" },
+  tower:      { name: "Cooling Tower", w: 6, h: 6, cat: "cool" },
+  gasbank:    { name: "Gas Bank", w: 8, h: 4, cat: "gas" },
+  threeway:   { name: "3-Way", w: 1.6, h: 1.6, cat: "fit", circle: true },
+  bench:      { name: "Dragon Seat Bench", short: "Dragon Seat", w: 12, h: 3, cat: "seat", lockW: true },
+  team:       { name: "Team Equipment", w: 10, h: 5, cat: "team" },
+  custom:     { name: "Custom Item", w: 4, h: 4, cat: "custom" },
+  text:       { name: "Text Label", short: "Label", w: 12, h: 2.5, cat: "text" }
+};
+const LIB = [
+  ["Heat", ["ds170", "ds350", "modheat"]],
+  ["Cooling", ["ac", "compressor", "powerbox", "tower"]],
+  ["Gas", ["gasbank", "threeway"]],
+  ["Seating", ["bench"]],
+  ["Team & other", ["team", "custom", "text"]]
+];
+const KINDS = {
+  gas:   { name: "Gas hose",       color: "#ff6a3d", w: 0.8, dash: "" },
+  power: { name: "Extension cord", color: "#ffd43b", w: 0.6, dash: "1.6 0.9" },
+  water: { name: "Water line",     color: "#4dabf7", w: 0.8, dash: "" },
+  other: { name: "Other",          color: "#f1f3f5", w: 0.5, dash: "0.5 0.7" }
+};
+
+// ---------- Helpers ----------
+const $ = s => document.querySelector(s);
+const uid = () => Math.random().toString(36).slice(2, 10);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const r2 = n => Math.round(n * 100) / 100;
+const clampX = x => Math.min(CUT_R, Math.max(CUT_L, x));
+const snap = (v, free) => free ? r2(v) : Math.round(v * 2) / 2;
+const deep = o => JSON.parse(JSON.stringify(o));
+const fmtYd = x => {
+  const yd = x / 3, near = yd <= 50 ? yd : 100 - yd, r = Math.round(near);
+  if (r === 50) return "At the 50";
+  return `${r}-yard line, ${yd < 50 ? "left" : "right"} of the 50`;
+};
+function lsGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+
+// ---------- State ----------
+const DEFAULT_SETTINGS = { depth: 45, topLabel: "Visiting Sideline", bottomLabel: "Home Sideline", view: "both" };
+function exampleState() {
+  const H = 160, items = [], conns = [];
+  const add = (type, x, y, extra = {}) => { const T = TYPES[type]; const it = { id: uid(), type, label: T.short || T.name, x, y, w: T.w, h: T.h, rot: 0, notes: "", ...extra }; items.push(it); return it; };
+  const link = (a, b, kind, extra = {}) => conns.push({ id: uid(), from: a.id, to: b.id, kind, label: "", notes: "", pts: [], ...extra });
+  [108, 121, 134, 166, 179, 192].forEach(x => add("bench", x, H + 9));
+  const h1 = add("ds350", 121, H + 17, { label: "DS-350 A" });
+  const h2 = add("ds350", 150, H + 17, { label: "DS-350 B" });
+  const h3 = add("ds350", 179, H + 17, { label: "DS-350 C" });
+  const bank = add("gasbank", 150, H + 33);
+  const t1 = add("threeway", 134, H + 26);
+  const t2 = add("threeway", 166, H + 26);
+  const pb = add("powerbox", 200, H + 33);
+  link(bank, t1, "gas", { label: "50 ft" });
+  link(t1, h1, "gas", { label: "25 ft", notes: "Example: between the 3-way and DS-350 A — A) ball valve, B) regulator, C) 25 ft hose." });
+  link(t1, h2, "gas", { label: "25 ft" });
+  link(bank, t2, "gas", { label: "50 ft" });
+  link(t2, h3, "gas", { label: "25 ft" });
+  link(pb, h3, "power", { label: "Ext. cord", pts: [{ x: 200, y: H + 22 }] });
+  add("team", 150, -10, { w: 66, h: 4, label: "Visiting team benches" });
+  add("team", 96, -24, { w: 14, h: 8, label: "Medical" });
+  add("team", 204, -22, { w: 12, h: 6, label: "Hydration" });
+  add("team", 150, -28, { w: 26, h: 6, label: "Equipment trunks" });
+  add("text", 150, H + 41, { w: 40, h: 2.2, label: "Example layout — replace with your job" });
+  return { id: null, name: "Example – heat season", settings: { ...DEFAULT_SETTINGS, view: "bottom" }, items, conns };
+}
+function normalize(s) {
+  s.settings = { ...DEFAULT_SETTINGS, ...(s.settings || {}) };
+  s.items = (s.items || []).filter(i => TYPES[i.type]);
+  const ids = new Set(s.items.map(i => i.id));
+  s.conns = (s.conns || []).filter(c => ids.has(c.from) && ids.has(c.to)).map(c => ({ pts: [], label: "", notes: "", ...c }));
+  return s;
+}
+
+let state, dirty = false;
+let sel = null;               // {t:'item'|'conn', id}
+let mode = "select";          // 'select' | 'connect'
+let connKind = "gas", connSrc = null, hoverPt = null;
+let cam = null, ppf = 3;
+let drag = null;
+let hist = [], redo = [];
+let layouts = [], store = null, saving = false, pendingConfirm = null;
+let lastBendTap = null;
+
+const draft = lsGet("dsp-draft-v1");
+if (draft && draft.state) { state = normalize(draft.state); dirty = !!draft.dirty; }
+else state = exampleState();
+
+const byId = id => state.items.find(i => i.id === id);
+const connById = id => state.conns.find(c => c.id === id);
+const snapshot = () => JSON.stringify({ settings: state.settings, items: state.items, conns: state.conns });
+function pushHist() { hist.push(snapshot()); if (hist.length > 120) hist.shift(); redo = []; }
+function restore(json) {
+  const d = JSON.parse(json);
+  state.settings = d.settings; state.items = d.items; state.conns = d.conns;
+  if (sel && !(sel.t === "item" ? byId(sel.id) : connById(sel.id))) sel = null;
+  changed(); renderPanel();
+}
+function undo() { if (!hist.length) return; redo.push(snapshot()); restore(hist.pop()); }
+function redoFn() { if (!redo.length) return; hist.push(snapshot()); restore(redo.pop()); }
+
+let draftTimer = null;
+function saveDraft() { clearTimeout(draftTimer); draftTimer = setTimeout(() => lsSet("dsp-draft-v1", { state, dirty }), 400); }
+function changed() { dirty = true; saveDraft(); render(); updateBar(); }
+
+// ---------- Geometry ----------
+function bbox(it) {
+  const a = it.rot * Math.PI / 180, c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a));
+  return { bw: it.w * c + it.h * s, bh: it.w * s + it.h * c };
+}
+function connPts(c) {
+  const a = byId(c.from), b = byId(c.to);
+  if (!a || !b) return null;
+  return [{ x: a.x, y: a.y }, ...c.pts, { x: b.x, y: b.y }];
+}
+function polyLen(p) { let L = 0; for (let i = 1; i < p.length; i++) L += Math.hypot(p[i].x - p[i - 1].x, p[i].y - p[i - 1].y); return L; }
+function polyMid(p) {
+  const half = polyLen(p) / 2; let acc = 0;
+  for (let i = 1; i < p.length; i++) {
+    const seg = Math.hypot(p[i].x - p[i - 1].x, p[i].y - p[i - 1].y);
+    if (acc + seg >= half && seg > 0) { const t = (half - acc) / seg; return { x: p[i - 1].x + (p[i].x - p[i - 1].x) * t, y: p[i - 1].y + (p[i].y - p[i - 1].y) * t }; }
+    acc += seg;
+  }
+  return p[0];
+}
+function extent(view) {
+  const D = state.settings.depth;
+  if (view === "top") return { x: 42, y: -D - 6, w: 216, h: D + 18 };
+  if (view === "bottom") return { x: 42, y: FIELD_W - 12, w: 216, h: D + 18 };
+  return { x: -36, y: -D - 6, w: 372, h: FIELD_W + 2 * D + 12 };
+}
+function noteEntries() {
+  const out = []; let n = 1;
+  state.items.forEach(it => { if ((it.notes || "").trim()) out.push({ n: n++, t: "item", id: it.id, title: it.label || TYPES[it.type].name, text: it.notes.trim() }); });
+  state.conns.forEach(c => {
+    if (!(c.notes || "").trim()) return;
+    const a = byId(c.from), b = byId(c.to);
+    out.push({ n: n++, t: "conn", id: c.id, title: `${KINDS[c.kind].name}: ${a.label} → ${b.label}${c.label ? ` (${c.label})` : ""}`, text: c.notes.trim() });
+  });
+  return out;
+}
+
+// ---------- Scene markup (shared by live view and image export) ----------
+function defs() {
+  return `<defs>
+  <pattern id="nogo" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+    <rect width="3" height="3" fill="rgba(201,42,42,0.16)"/><rect width="1" height="3" fill="rgba(255,80,80,0.38)"/>
+  </pattern>
+  <pattern id="teamhatch" width="1.6" height="1.6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+    <rect width="1.6" height="1.6" fill="#8d969e"/><rect width="0.5" height="1.6" fill="#7a838b"/>
+  </pattern>
+</defs>`;
+}
+function fieldMarkup() {
+  const D = state.settings.depth, s = state.settings;
+  let m = "";
+  m += `<rect x="-400" y="${-D - 400}" width="1100" height="${FIELD_W + 2 * D + 800}" fill="#1f2a24"/>`;
+  m += `<rect x="-36" y="${-D}" width="372" height="${D}" fill="#2d3d34"/>`;
+  m += `<rect x="-36" y="${FIELD_W}" width="372" height="${D}" fill="#2d3d34"/>`;
+  // field + stripes
+  m += `<rect x="-30" y="0" width="360" height="${FIELD_W}" fill="#3a7a3b"/>`;
+  for (let i = 0; i < 20; i += 2) m += `<rect x="${i * 15}" y="0" width="15" height="${FIELD_W}" fill="#408442"/>`;
+  m += `<rect x="-30" y="0" width="30" height="${FIELD_W}" fill="#2f6b33"/><rect x="300" y="0" width="30" height="${FIELD_W}" fill="#2f6b33"/>`;
+  // hash + 1-yd ticks
+  let ticks = "";
+  for (let yd = 1; yd < 100; yd++) {
+    if (yd % 5 === 0) continue; const x = yd * 3;
+    ticks += `M${x} 0.6V2.6M${x} ${FIELD_W - 2.6}V${FIELD_W - 0.6}M${x} 59V61M${x} 99V101`;
+  }
+  m += `<path d="${ticks}" stroke="rgba(255,255,255,0.75)" stroke-width="0.25"/>`;
+  // 5-yd lines
+  for (let i = 0; i <= 20; i++) {
+    const x = i * 15, gl = i === 0 || i === 20, fifty = i === 10;
+    m += `<line x1="${x}" y1="0" x2="${x}" y2="${FIELD_W}" stroke="${fifty ? "#fff3bf" : "#ffffff"}" stroke-width="${fifty ? 1.3 : gl ? 1 : 0.5}" opacity="${fifty ? 1 : 0.9}"/>`;
+  }
+  m += `<rect x="-30" y="0" width="360" height="${FIELD_W}" fill="none" stroke="#ffffff" stroke-width="1"/>`;
+  // numbers
+  for (let n = 10; n <= 90; n += 10) {
+    const v = n <= 50 ? n : 100 - n, x = n * 3;
+    m += `<text x="${x}" y="${FIELD_W - 36}" font-family="${SVG_FONT}" font-weight="700" font-size="7" fill="#ffffff" opacity="0.85" text-anchor="middle">${v}</text>`;
+    m += `<text x="${x}" y="36" font-family="${SVG_FONT}" font-weight="700" font-size="7" fill="#ffffff" opacity="0.85" text-anchor="middle" transform="rotate(180 ${x} 33.6)">${v}</text>`;
+  }
+  // no-go zones beyond the 25s (sideline areas)
+  [[-D, D], [FIELD_W, D]].forEach(([y, h]) => {
+    m += `<rect x="-36" y="${y}" width="${CUT_L + 36}" height="${h}" fill="url(#nogo)"/>`;
+    m += `<rect x="${CUT_R}" y="${y}" width="${336 - CUT_R}" height="${h}" fill="url(#nogo)"/>`;
+  });
+  // yard marks along each sideline (team area)
+  for (let yd = 20; yd <= 80; yd += 5) {
+    const x = yd * 3, v = yd <= 50 ? yd : 100 - yd;
+    m += `<text x="${x}" y="-1.2" font-family="${SVG_FONT}" font-size="2.2" fill="rgba(255,255,255,0.6)" text-anchor="middle">${v}</text>`;
+    m += `<text x="${x}" y="${FIELD_W + 2.9}" font-family="${SVG_FONT}" font-size="2.2" fill="rgba(255,255,255,0.6)" text-anchor="middle">${v}</text>`;
+  }
+  // 50 marker through sideline areas
+  m += `<line x1="150" y1="${-D}" x2="150" y2="0" stroke="#fff3bf" stroke-width="0.4" stroke-dasharray="1.5 1.5" opacity="0.7"/>`;
+  m += `<line x1="150" y1="${FIELD_W}" x2="150" y2="${FIELD_W + D}" stroke="#fff3bf" stroke-width="0.4" stroke-dasharray="1.5 1.5" opacity="0.7"/>`;
+  // cutoff lines
+  [CUT_L, CUT_R].forEach(x => {
+    m += `<line x1="${x}" y1="${-D}" x2="${x}" y2="${FIELD_W + D}" stroke="#ff3b3b" stroke-width="0.9"/>`;
+  });
+  const halo = `stroke="rgba(0,0,0,0.6)" stroke-width="0.35" paint-order="stroke"`;
+  [[-D + 4, s.topLabel], [FIELD_W + D - 2, s.bottomLabel]].forEach(([y, label]) => {
+    m += `<text x="${CUT_L - 1.5}" y="${y}" font-family="${SVG_FONT}" font-weight="700" font-size="2.4" fill="#ffc9c9" text-anchor="end" ${halo}>OFF LIMITS</text>`;
+    m += `<text x="${CUT_R + 1.5}" y="${y}" font-family="${SVG_FONT}" font-weight="700" font-size="2.4" fill="#ffc9c9" text-anchor="start" ${halo}>OFF LIMITS</text>`;
+    m += `<text x="${CUT_L + 2}" y="${y}" font-family="${SVG_FONT}" font-weight="700" font-size="3.2" fill="rgba(255,255,255,0.75)" letter-spacing="0.3">${esc(String(label).toUpperCase())}</text>`;
+  });
+  return m;
+}
+function itemMarkup(it, live) {
+  const T = TYPES[it.type], C = CATS[T.cat], w = it.w, h = it.h;
+  let b = "";
+  if (T.circle) {
+    b = `<circle r="${Math.min(w, h) / 2}" fill="${C.fill}" stroke="${C.stroke}" stroke-width="0.25"/>`;
+  } else if (T.cat === "text") {
+    b = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="rgba(0,0,0,0)"/>`;
+  } else {
+    b = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="0.35" fill="${T.cat === "team" ? "url(#teamhatch)" : C.fill}" stroke="${C.stroke}" stroke-width="0.25"/>`;
+    if (it.type === "gasbank") {
+      const n = Math.max(1, Math.floor((w - 0.6) / 1.4)), step = (w - 0.6) / n, r = Math.min(h * 0.32, step * 0.38);
+      for (let i = 0; i < n; i++) b += `<circle cx="${-w / 2 + 0.3 + step * (i + 0.5)}" cy="${h * 0.12}" r="${r}" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="0.15"/>`;
+    }
+    if (it.type === "bench") b += `<line x1="${-w / 2 + 0.3}" y1="${-h / 2 + h * 0.28}" x2="${w / 2 - 0.3}" y2="${-h / 2 + h * 0.28}" stroke="rgba(255,255,255,0.3)" stroke-width="0.15"/>`;
+  }
+  let o = "";
+  if (live && ((sel && sel.t === "item" && sel.id === it.id) || connSrc === it.id)) {
+    const p = 0.5, sw = 2 / ppf;
+    o = T.circle
+      ? `<circle r="${Math.min(w, h) / 2 + p}" fill="none" stroke="${SELC}" stroke-width="${sw}" stroke-dasharray="${4 / ppf} ${3 / ppf}"/>`
+      : `<rect x="${-w / 2 - p}" y="${-h / 2 - p}" width="${w + 2 * p}" height="${h + 2 * p}" fill="none" stroke="${SELC}" stroke-width="${sw}" stroke-dasharray="${4 / ppf} ${3 / ppf}"/>`;
+  }
+  const attrs = live ? ` data-kind="item" data-id="${it.id}" style="cursor:${mode === "connect" ? "crosshair" : "move"}"` : "";
+  return `<g transform="translate(${it.x} ${it.y}) rotate(${it.rot})"${attrs}>${b}${o}</g>`;
+}
+function labelMarkup(it) {
+  const T = TYPES[it.type], C = CATS[T.cat], { bw, bh } = bbox(it), txt = it.label || "";
+  if (!txt) return "";
+  const halo = `stroke="rgba(0,0,0,0.65)" stroke-width="0.3" paint-order="stroke"`;
+  if (T.cat === "text") {
+    return `<text x="${it.x}" y="${it.y}" font-family="${SVG_FONT}" font-weight="600" font-size="${Math.max(0.8, it.h * 0.75)}" fill="#ffffff" text-anchor="middle" dominant-baseline="central" ${halo} pointer-events="none">${esc(txt)}</text>`;
+  }
+  let fs = Math.min(bh * 0.42, (bw * 0.9) / (Math.max(3, txt.length) * 0.47), 3.2);
+  if (fs < 1) {
+    return `<text x="${it.x}" y="${it.y + bh / 2 + 1.6}" font-family="${SVG_FONT}" font-weight="600" font-size="1.3" fill="#ffffff" text-anchor="middle" ${halo} pointer-events="none">${esc(txt)}</text>`;
+  }
+  return `<text x="${it.x}" y="${it.y}" font-family="${SVG_FONT}" font-weight="600" font-size="${r2(fs)}" fill="${C.text}" text-anchor="middle" dominant-baseline="central" pointer-events="none">${esc(txt)}</text>`;
+}
+function badge(x, y, n) {
+  return `<g pointer-events="none"><circle cx="${x}" cy="${y}" r="1.2" fill="#ffd43b" stroke="#111" stroke-width="0.15"/><text x="${x}" y="${y}" font-family="${SVG_FONT}" font-weight="700" font-size="1.5" fill="#111" text-anchor="middle" dominant-baseline="central">${n}</text></g>`;
+}
+function sceneMarkup(live) {
+  const notes = noteEntries(), num = new Map(notes.map(n => [n.id, n.n]));
+  let m = defs() + fieldMarkup();
+  // connections
+  let lines = "", labels = "";
+  state.conns.forEach(c => {
+    const p = connPts(c); if (!p) return;
+    const K = KINDS[c.kind] || KINDS.other, d = "M" + p.map(q => `${r2(q.x)} ${r2(q.y)}`).join(" L");
+    const isSel = live && sel && sel.t === "conn" && sel.id === c.id;
+    if (isSel) lines += `<path d="${d}" fill="none" stroke="${SELC}" stroke-width="${K.w + 1.4}" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>`;
+    lines += `<path d="${d}" fill="none" stroke="rgba(0,0,0,0.5)" stroke-width="${K.w + 0.45}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    lines += `<path d="${d}" fill="none" stroke="${K.color}" stroke-width="${K.w}" stroke-linejoin="round" stroke-linecap="round"${K.dash ? ` stroke-dasharray="${K.dash}"` : ""}/>`;
+    if (live) lines += `<path d="${d}" fill="none" stroke="rgba(0,0,0,0)" stroke-width="${Math.max(2.5, 14 / ppf)}" data-kind="conn" data-id="${c.id}" style="cursor:pointer"/>`;
+    const mid = polyMid(p);
+    let lx = mid.x;
+    if (c.label) {
+      labels += `<text x="${mid.x}" y="${mid.y - 1}" font-family="${SVG_FONT}" font-weight="600" font-size="1.5" fill="#ffffff" text-anchor="middle" stroke="rgba(0,0,0,0.75)" stroke-width="0.35" paint-order="stroke" pointer-events="none">${esc(c.label)}</text>`;
+      lx = mid.x + c.label.length * 0.38 + 1.4;
+    }
+    if (num.has(c.id)) labels += badge(c.label ? lx : mid.x, c.label ? mid.y - 1.5 : mid.y, num.get(c.id));
+  });
+  m += lines;
+  // items, then labels on top
+  state.items.forEach(it => { m += itemMarkup(it, live); });
+  state.items.forEach(it => {
+    m += labelMarkup(it);
+    if (num.has(it.id)) { const { bw, bh } = bbox(it); m += badge(it.x + bw / 2, it.y - bh / 2, num.get(it.id)); }
+  });
+  m += labels;
+  if (live) m += overlayMarkup();
+  return m;
+}
+function overlayMarkup() {
+  let m = ""; const hs = 7 / ppf;
+  if (sel && sel.t === "item") {
+    const it = byId(sel.id);
+    if (it) {
+      const a = it.rot * Math.PI / 180, T = TYPES[it.type];
+      const w = T.circle ? Math.min(it.w, it.h) * 0.71 : it.w, h = T.circle ? Math.min(it.w, it.h) * 0.71 : it.h;
+      const hx = it.x + (w / 2) * Math.cos(a) - (h / 2) * Math.sin(a), hy = it.y + (w / 2) * Math.sin(a) + (h / 2) * Math.cos(a);
+      m += `<rect x="${hx - hs}" y="${hy - hs}" width="${hs * 2}" height="${hs * 2}" fill="#ffffff" stroke="#0b3d6e" stroke-width="${1.5 / ppf}" data-kind="resize" data-id="${it.id}" style="cursor:nwse-resize"/>`;
+    }
+  }
+  if (sel && sel.t === "conn") {
+    const c = connById(sel.id), p = c && connPts(c);
+    if (p) {
+      for (let i = 0; i < p.length - 1; i++) {
+        const mx = (p[i].x + p[i + 1].x) / 2, my = (p[i].y + p[i + 1].y) / 2;
+        m += `<circle cx="${mx}" cy="${my}" r="${hs * 0.8}" fill="rgba(255,255,255,0.85)" stroke="#0b3d6e" stroke-width="${1.5 / ppf}" data-kind="mid" data-id="${c.id}" data-i="${i}" style="cursor:copy"/>`;
+      }
+      c.pts.forEach((q, i) => { m += `<circle cx="${q.x}" cy="${q.y}" r="${hs}" fill="${SELC}" stroke="#0b3d6e" stroke-width="${1.5 / ppf}" data-kind="bend" data-id="${c.id}" data-i="${i}" style="cursor:grab"/>`; });
+    }
+  }
+  if (mode === "connect" && connSrc && hoverPt) {
+    const a = byId(connSrc), K = KINDS[connKind];
+    if (a) m += `<line x1="${a.x}" y1="${a.y}" x2="${hoverPt.x}" y2="${hoverPt.y}" stroke="${K.color}" stroke-width="${K.w}" stroke-dasharray="1.2 0.8" pointer-events="none" opacity="0.9"/>`;
+  }
+  return m;
+}
+
+// ---------- Live rendering ----------
+const svg = $("#svg"), scene = $("#scene"), stage = $("#stage");
+function measure() { const r = svg.getBoundingClientRect(); ppf = Math.min(r.width / cam.w, r.height / cam.h) || 3; }
+function render() {
+  svg.setAttribute("viewBox", `${cam.x} ${cam.y} ${cam.w} ${cam.h}`);
+  measure();
+  scene.innerHTML = sceneMarkup(true);
+  stage.classList.toggle("connecting", mode === "connect");
+  document.querySelectorAll(".lib-line").forEach(b => b.setAttribute("aria-pressed", mode === "connect" && b.dataset.kind === connKind));
+  const hint = $("#hint");
+  if (mode === "connect") {
+    hint.hidden = false;
+    $("#hint-text").textContent = connSrc
+      ? `Now tap the item the ${KINDS[connKind].name.toLowerCase()} goes to. Esc to stop.`
+      : `Tap the item the ${KINDS[connKind].name.toLowerCase()} starts from (a gas bank, 3-way, unit…).`;
+  } else hint.hidden = true;
+  $("#btn-undo").disabled = !hist.length;
+  $("#btn-redo").disabled = !redo.length;
+}
+function fit() { cam = { ...extent(state.settings.view) }; render(); }
+function toWorld(e) {
+  const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const q = pt.matrixTransform(svg.getScreenCTM().inverse()); return { x: q.x, y: q.y };
+}
+let toastTimer = null;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 2600); }
+
+// ---------- Pointer interaction on the field ----------
+svg.addEventListener("pointerdown", e => {
+  if (e.pointerType === "mouse" && e.button !== 0) return;
+  const p = toWorld(e), el = e.target.closest("[data-kind]"), kind = el && el.dataset.kind, id = el && el.dataset.id;
+  closePop();
+  if (mode === "connect" && kind === "item") {
+    if (!connSrc) { connSrc = id; hoverPt = p; render(); }
+    else if (id !== connSrc) {
+      pushHist();
+      const c = { id: uid(), from: connSrc, to: id, kind: connKind, label: "", notes: "", pts: [] };
+      state.conns.push(c); connSrc = null; hoverPt = null; sel = { t: "conn", id: c.id };
+      changed(); renderPanel();
+    }
+    return;
+  }
+  if (kind === "resize") {
+    drag = { type: "resize", id, pushed: false };
+  } else if (kind === "item") {
+    const it = byId(id);
+    if (!sel || sel.id !== id) { sel = { t: "item", id }; renderPanel(); }
+    drag = { type: "move", id, dx: it.x - p.x, dy: it.y - p.y, pushed: false, warned: false };
+  } else if (kind === "bend") {
+    const i = +el.dataset.i, now = Date.now();
+    if (lastBendTap && lastBendTap.id === id && lastBendTap.i === i && now - lastBendTap.t < 400) {
+      pushHist(); connById(id).pts.splice(i, 1); lastBendTap = null; changed(); renderPanel(); return;
+    }
+    lastBendTap = { id, i, t: now };
+    drag = { type: "bend", id, i, pushed: false };
+  } else if (kind === "mid") {
+    const c = connById(id), i = +el.dataset.i;
+    pushHist(); c.pts.splice(i, 0, { x: clampX(p.x), y: p.y });
+    drag = { type: "bend", id, i, pushed: true };
+  } else if (kind === "conn") {
+    sel = { t: "conn", id }; renderPanel(); drag = null; render(); return;
+  } else {
+    if (sel && mode !== "connect") { sel = null; renderPanel(); }
+    drag = { type: "pan", sx: e.clientX, sy: e.clientY, cam0: { ...cam } };
+  }
+  try { svg.setPointerCapture(e.pointerId); } catch {}
+  render();
+});
+svg.addEventListener("pointermove", e => {
+  const p = toWorld(e);
+  if (mode === "connect" && connSrc && !drag) { hoverPt = p; render(); return; }
+  if (!drag) return;
+  const free = e.altKey;
+  if (drag.type === "pan") {
+    cam.x = drag.cam0.x - (e.clientX - drag.sx) / ppf;
+    cam.y = drag.cam0.y - (e.clientY - drag.sy) / ppf;
+    render(); return;
+  }
+  if (!drag.pushed) { pushHist(); drag.pushed = true; }
+  if (drag.type === "move") {
+    const it = byId(drag.id), rawX = p.x + drag.dx;
+    it.x = snap(clampX(rawX), free); it.y = snap(p.y + drag.dy, free);
+    if ((rawX < CUT_L - 0.5 || rawX > CUT_R + 0.5) && !drag.warned) { drag.warned = true; toast("Stopped at the 25 — nothing goes past the cutoff."); }
+    dirty = true; render(); updatePanelLive();
+  } else if (drag.type === "resize") {
+    const it = byId(drag.id), T = TYPES[it.type], a = -it.rot * Math.PI / 180;
+    const vx = p.x - it.x, vy = p.y - it.y;
+    const lx = vx * Math.cos(a) - vy * Math.sin(a), ly = vx * Math.sin(a) + vy * Math.cos(a);
+    if (T.circle) { const d = Math.max(0.5, snap(Math.max(Math.abs(lx), Math.abs(ly)) * 2 / 0.71, free)); it.w = d; it.h = d; }
+    else {
+      if (!T.lockW) it.w = Math.max(0.5, snap(Math.abs(lx) * 2, free));
+      it.h = Math.max(0.5, snap(Math.abs(ly) * 2, free));
+    }
+    dirty = true; render(); updatePanelLive();
+  } else if (drag.type === "bend") {
+    const c = connById(drag.id); c.pts[drag.i] = { x: snap(clampX(p.x), free), y: snap(p.y, free) };
+    dirty = true; render(); updatePanelLive();
+  }
+});
+function endDrag() {
+  if (drag && drag.pushed) changed();
+  drag = null;
+}
+svg.addEventListener("pointerup", endDrag);
+svg.addEventListener("pointercancel", endDrag);
+svg.addEventListener("pointerleave", () => { if (mode === "connect" && connSrc && !drag) { hoverPt = null; render(); } });
+svg.addEventListener("wheel", e => {
+  e.preventDefault();
+  const p = toWorld(e), f = Math.exp(e.deltaY * 0.0015);
+  zoomAt(p, f);
+}, { passive: false });
+function zoomAt(p, f) {
+  const nw = Math.min(900, Math.max(12, cam.w * f)), k = nw / cam.w;
+  cam.x = p.x - (p.x - cam.x) * k; cam.y = p.y - (p.y - cam.y) * k; cam.w *= k; cam.h *= k;
+  render();
+}
+$("#z-in").onclick = () => zoomAt({ x: cam.x + cam.w / 2, y: cam.y + cam.h / 2 }, 0.75);
+$("#z-out").onclick = () => zoomAt({ x: cam.x + cam.w / 2, y: cam.y + cam.h / 2 }, 1.33);
+$("#z-fit").onclick = fit;
+window.addEventListener("resize", () => render());
+
+// ---------- Library: tap to add, or drag onto the field ----------
+function defaultSpot() {
+  const cx = cam.x + cam.w / 2, cy = cam.y + cam.h / 2, D = state.settings.depth;
+  let y = cy;
+  if (cy >= 0 && cy <= FIELD_W) y = state.settings.view === "top" ? -Math.min(15, D / 2) : FIELD_W + Math.min(15, D / 2);
+  let x = clampX(cx);
+  while (state.items.some(i => Math.abs(i.x - x) < 0.6 && Math.abs(i.y - y) < 0.6)) { x = clampX(x + 3); y += 1; }
+  return { x: snap(x), y: snap(y) };
+}
+function addItem(type, at) {
+  const T = TYPES[type]; pushHist();
+  const it = { id: uid(), type, label: T.short || T.name, x: clampX(at.x), y: at.y, w: T.w, h: T.h, rot: 0, notes: "" };
+  state.items.push(it); sel = { t: "item", id: it.id };
+  if (mode === "connect") setMode("select");
+  changed(); renderPanel();
+}
+function renderLib() {
+  const lib = $("#lib");
+  lib.innerHTML = `<div class="lib-group"><div class="lib-h">Hoses &amp; cords</div>${Object.entries(KINDS).map(([k, K]) => `<button class="lib-btn lib-line" data-kind="${k}" aria-pressed="false">${legendSwatch(K)}<span>${K.name}</span></button>`).join("")}</div>` + LIB.map(([g, types]) => `<div class="lib-group"><div class="lib-h">${g}</div>${types.map(t => {
+    const T = TYPES[t], C = CATS[T.cat];
+    const sw = T.cat === "text" ? `<span class="sw" style="background:transparent;border-style:dashed"></span>` : `<span class="sw${T.circle ? " round" : ""}" style="background:${T.cat === "team" ? "#8d969e" : C.fill}"></span>`;
+    return `<button class="lib-btn" data-type="${t}">${sw}<span>${T.name}</span></button>`;
+  }).join("")}</div>`).join("") + `<p class="lib-tip">Hoses: pick a type, then tap the item it starts from and the item it goes to. Equipment: tap to add, or drag onto the field. Sizes start as placeholders — select an item to type its real size.</p>`;
+}
+let libDrag = null;
+$("#lib").addEventListener("click", e => {
+  const b = e.target.closest(".lib-line"); if (!b) return;
+  if (mode === "connect" && connKind === b.dataset.kind) { setMode("select"); return; }
+  connKind = b.dataset.kind; kindSel.value = connKind; setMode("connect");
+});
+$("#lib").addEventListener("pointerdown", e => {
+  const b = e.target.closest(".lib-btn"); if (!b || b.classList.contains("lib-line")) return;
+  libDrag = { type: b.dataset.type, sx: e.clientX, sy: e.clientY, moved: false };
+});
+window.addEventListener("pointermove", e => {
+  if (!libDrag) return;
+  if (!libDrag.moved && Math.hypot(e.clientX - libDrag.sx, e.clientY - libDrag.sy) > 6 && e.pointerType === "mouse") {
+    libDrag.moved = true; const g = $("#ghost"); g.textContent = TYPES[libDrag.type].name; g.hidden = false;
+  }
+  if (libDrag.moved) { const g = $("#ghost"); g.style.left = e.clientX + "px"; g.style.top = e.clientY + "px"; }
+});
+window.addEventListener("pointerup", e => {
+  if (!libDrag) return;
+  const d = libDrag; libDrag = null; $("#ghost").hidden = true;
+  if (!d.moved) { addItem(d.type, defaultSpot()); return; }
+  const r = svg.getBoundingClientRect();
+  if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+    const p = toWorld(e); addItem(d.type, { x: snap(p.x), y: snap(p.y) });
+    if (p.x < CUT_L || p.x > CUT_R) toast("Placed at the 25 — nothing goes past the cutoff.");
+  }
+});
+
+// ---------- Toolbar ----------
+function setMode(m) {
+  mode = m; connSrc = null; hoverPt = null;
+  $("#btn-connect").setAttribute("aria-pressed", m === "connect");
+  render();
+}
+$("#btn-connect").onclick = () => setMode(mode === "connect" ? "select" : "connect");
+const kindSel = $("#conn-kind");
+kindSel.innerHTML = Object.entries(KINDS).map(([k, K]) => `<option value="${k}">${K.name}</option>`).join("");
+kindSel.onchange = () => { connKind = kindSel.value; if (mode !== "connect") setMode("connect"); else render(); };
+function renderViewSeg() {
+  const s = state.settings;
+  $("#view-seg").innerHTML = [["both", "Both sides"], ["bottom", s.bottomLabel || "Home"], ["top", s.topLabel || "Visiting"]]
+    .map(([v, l]) => `<button data-view="${v}" aria-pressed="${s.view === v}">${esc(l)}</button>`).join("");
+}
+$("#view-seg").onclick = e => {
+  const b = e.target.closest("button[data-view]"); if (!b) return;
+  state.settings.view = b.dataset.view; renderViewSeg(); fit(); saveDraft();
+};
+$("#btn-undo").onclick = undo;
+$("#btn-redo").onclick = redoFn;
+const nameIn = $("#layout-name");
+nameIn.addEventListener("input", () => { state.name = nameIn.value; dirty = true; saveDraft(); updateBar(); });
+function updateBar() {
+  $("#dirty").hidden = !dirty;
+  if (document.activeElement !== nameIn) nameIn.value = state.name || "";
+  $("#btn-save").disabled = saving;
+  $("#btn-save").textContent = saving ? "Saving…" : "Save";
+}
+
+// ---------- Keyboard ----------
+window.addEventListener("keydown", e => {
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === "z" && !typing) { e.preventDefault(); e.shiftKey ? redoFn() : undo(); return; }
+  if (mod && e.key.toLowerCase() === "y" && !typing) { e.preventDefault(); redoFn(); return; }
+  if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); save(false); return; }
+  if (typing) return;
+  if (e.key === "Escape") { if (mode === "connect") setMode("select"); else if (sel) { sel = null; renderPanel(); render(); } closePop(); }
+  if ((e.key === "Delete" || e.key === "Backspace") && sel) { e.preventDefault(); deleteSel(); }
+  if (e.key.toLowerCase() === "c" && !mod) setMode(mode === "connect" ? "select" : "connect");
+  if (e.key.toLowerCase() === "r" && !mod && sel && sel.t === "item") rotate(90);
+  if (mod && e.key.toLowerCase() === "d" && sel && sel.t === "item") { e.preventDefault(); duplicate(); }
+});
+function deleteSel() {
+  if (!sel) return; pushHist();
+  if (sel.t === "item") { state.items = state.items.filter(i => i.id !== sel.id); state.conns = state.conns.filter(c => c.from !== sel.id && c.to !== sel.id); }
+  else state.conns = state.conns.filter(c => c.id !== sel.id);
+  sel = null; changed(); renderPanel();
+}
+function rotate(deg) { const it = byId(sel.id); pushHist(); it.rot = ((it.rot + deg) % 360 + 360) % 360; changed(); renderPanel(); }
+function duplicate() {
+  const it = byId(sel.id); pushHist();
+  const n = { ...deep(it), id: uid(), x: clampX(it.x + 2), y: it.y + 2 };
+  state.items.push(n); sel = { t: "item", id: n.id }; changed(); renderPanel();
+}
+
+// ---------- Details panel ----------
+const panel = $("#panel");
+let armed = false;
+function bindText(id, apply) {
+  const el = document.getElementById(id); if (!el) return;
+  el.addEventListener("focus", () => (armed = true));
+  el.addEventListener("input", () => { if (armed) { pushHist(); armed = false; } apply(el.value); changed(); });
+}
+function legendSwatch(K) { return `<svg width="26" height="8" viewBox="0 0 26 8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="#00000066" stroke-width="5" stroke-linecap="round"/><line x1="1" y1="4" x2="25" y2="4" stroke="${K.color}" stroke-width="3.2" stroke-linecap="round" ${K.dash ? `stroke-dasharray="${K.dash.split(" ").map(v => v * 3.5).join(" ")}"` : ""}/></svg>`; }
+function renderPanel() {
+  if (sel && sel.t === "item" && byId(sel.id)) return itemPanel(byId(sel.id));
+  if (sel && sel.t === "conn" && connById(sel.id)) return connPanel(connById(sel.id));
+  layoutPanel();
+}
+function itemPanel(it) {
+  const T = TYPES[it.type], C = CATS[T.cat];
+  const touching = state.conns.filter(c => c.from === it.id || c.to === it.id);
+  panel.innerHTML = `
+  <div>
+    <div class="p-title"><span class="sw${T.circle ? " round" : ""}" style="background:${T.cat === "team" ? "#8d969e" : T.cat === "text" ? "transparent" : C.fill}"></span>${esc(T.name)}</div>
+    <div class="p-sub" id="pos-read">${fmtYd(it.x)}</div>
+  </div>
+  <div class="f"><label for="f-label">Label on the map</label><input id="f-label" value="${esc(it.label)}"></div>
+  ${T.cat === "text" ? `<div class="f"><label for="f-h">Text size (ft)</label><input id="f-h" type="number" step="0.5" min="0.5" value="${it.h}"></div>` : `
+  <div class="row2">
+    <div class="f"><label for="f-w">${T.circle ? "Diameter (ft)" : "Length (ft)"}</label><input id="f-w" type="number" step="0.5" min="0.5" value="${it.w}" ${T.lockW ? "disabled" : ""}></div>
+    ${T.circle ? "" : `<div class="f"><label for="f-h">Depth (ft)</label><input id="f-h" type="number" step="0.5" min="0.5" value="${it.h}"></div>`}
+  </div>
+  ${T.lockW ? `<div class="f"><span class="help">Dragon Seat benches are always 12 ft long. Depth can change.</span></div>` : ""}`}
+  <div class="f"><label for="f-rot">Rotation (degrees)</label>
+    <div class="acts"><input id="f-rot" type="number" step="15" value="${it.rot}" style="flex:1;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg)"><button class="btn" id="b-rot">Rotate 90°</button></div>
+  </div>
+  <div class="f"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="What feeds this unit, parts used, power needs…">${esc(it.notes)}</textarea><span class="help">Items with notes get a numbered marker on the map and in exports.</span></div>
+  ${touching.length ? `<div class="f"><label>Connections</label><div class="conn-list">${touching.map(c => {
+    const other = byId(c.from === it.id ? c.to : c.from), K = KINDS[c.kind];
+    return `<button class="conn-btn" data-conn="${c.id}"><i style="background:${K.color}"></i>${esc(K.name)} ${c.from === it.id ? "to" : "from"} ${esc(other.label)}${c.label ? ` · ${esc(c.label)}` : ""}</button>`;
+  }).join("")}</div></div>` : ""}
+  <div class="acts">
+    <button class="btn" id="b-connect">Connect from here</button>
+    <button class="btn" id="b-dup">Duplicate</button>
+    <button class="btn danger" id="b-del">Delete</button>
+  </div>`;
+  bindText("f-label", v => (it.label = v));
+  bindText("f-notes", v => (it.notes = v));
+  const num = (id, fn) => { const el = document.getElementById(id); if (!el) return; el.addEventListener("focus", () => (armed = true)); el.addEventListener("input", () => { const v = parseFloat(el.value); if (!(v > 0) && id !== "f-rot") return; if (id === "f-rot" && isNaN(v)) return; if (armed) { pushHist(); armed = false; } fn(v); changed(); }); };
+  num("f-w", v => { it.w = Math.min(400, v); if (T.circle) it.h = it.w; });
+  num("f-h", v => (it.h = Math.min(400, v)));
+  num("f-rot", v => (it.rot = ((v % 360) + 360) % 360));
+  $("#b-rot").onclick = () => rotate(90);
+  $("#b-dup").onclick = duplicate;
+  $("#b-del").onclick = deleteSel;
+  $("#b-connect").onclick = () => { setMode("connect"); connSrc = it.id; render(); };
+  panel.querySelectorAll("[data-conn]").forEach(b => (b.onclick = () => { sel = { t: "conn", id: b.dataset.conn }; renderPanel(); render(); }));
+}
+function connPanel(c) {
+  const a = byId(c.from), b = byId(c.to), K = KINDS[c.kind], p = connPts(c);
+  panel.innerHTML = `
+  <div>
+    <div class="p-title">${legendSwatch(K)}${esc(K.name)}</div>
+    <div class="p-sub">${esc(a.label)} → ${esc(b.label)}</div>
+  </div>
+  <div class="f"><label for="f-kind">Type</label><select id="f-kind">${Object.entries(KINDS).map(([k, X]) => `<option value="${k}" ${k === c.kind ? "selected" : ""}>${X.name}</option>`).join("")}</select></div>
+  <div class="f"><label for="f-clabel">Label on the map</label><input id="f-clabel" value="${esc(c.label)}" placeholder="e.g. 3/4 in × 50 ft"></div>
+  <div class="f"><label for="f-cnotes">Notes</label><textarea id="f-cnotes" placeholder="Parts between these two points, e.g. A) regulator, B) ball valve, C) 25 ft hose">${esc(c.notes)}</textarea></div>
+  <div class="f"><span class="help" id="run-read">Run on the map: about ${Math.round(polyLen(p))} ft</span>
+  <span class="help">Drag a white dot on the line to add a bend. Double-tap a blue bend to remove it.</span></div>
+  <div class="acts">
+    <button class="btn" id="b-sel-a">Select ${esc(a.label)}</button>
+    <button class="btn" id="b-sel-b">Select ${esc(b.label)}</button>
+  </div>
+  <div class="acts">
+    <button class="btn" id="b-straight" ${c.pts.length ? "" : "disabled"}>Remove bends</button>
+    <button class="btn danger" id="b-del">Delete</button>
+  </div>`;
+  $("#f-kind").onchange = e => { pushHist(); c.kind = e.target.value; changed(); renderPanel(); };
+  bindText("f-clabel", v => (c.label = v));
+  bindText("f-cnotes", v => (c.notes = v));
+  $("#b-sel-a").onclick = () => { sel = { t: "item", id: a.id }; renderPanel(); render(); };
+  $("#b-sel-b").onclick = () => { sel = { t: "item", id: b.id }; renderPanel(); render(); };
+  $("#b-straight").onclick = () => { pushHist(); c.pts = []; changed(); renderPanel(); };
+  $("#b-del").onclick = deleteSel;
+}
+function updatePanelLive() {
+  if (!sel) return;
+  if (sel.t === "item") {
+    const it = byId(sel.id); if (!it) return;
+    const pr = $("#pos-read"); if (pr) pr.textContent = fmtYd(it.x);
+    const w = $("#f-w"), h = $("#f-h"); if (w) w.value = it.w; if (h) h.value = it.h;
+  } else {
+    const c = connById(sel.id), r = $("#run-read"); if (c && r) r.textContent = `Run on the map: about ${Math.round(polyLen(connPts(c)))} ft`;
+  }
+}
+function layoutPanel() {
+  const s = state.settings, counts = {}, kc = {};
+  state.items.forEach(i => { if (i.type !== "text") counts[i.type] = (counts[i.type] || 0) + 1; });
+  state.conns.forEach(c => { const p = connPts(c); kc[c.kind] = kc[c.kind] || { n: 0, ft: 0 }; kc[c.kind].n++; kc[c.kind].ft += polyLen(p); });
+  const notes = noteEntries();
+  panel.innerHTML = `
+  <div><div class="p-title">Layout</div><div class="p-sub">Select anything on the field to edit it.</div></div>
+  <div class="row2">
+    <div class="f"><label for="s-top">Top sideline</label><input id="s-top" value="${esc(s.topLabel)}"></div>
+    <div class="f"><label for="s-bottom">Bottom sideline</label><input id="s-bottom" value="${esc(s.bottomLabel)}"></div>
+  </div>
+  <div class="f"><label for="s-depth">Sideline depth shown (ft)</label><input id="s-depth" type="number" min="10" max="200" step="5" value="${s.depth}"><span class="help">How far back from the sideline the work area runs.</span></div>
+  <div class="f"><div class="p-h">On this layout</div>
+    ${Object.keys(counts).length ? `<div class="stat">${Object.keys(TYPES).filter(t => counts[t]).map(t => `<div>${TYPES[t].name}</div><div>${counts[t]}</div>`).join("")}</div>` : `<p class="empty">Nothing placed yet. Add equipment from the library.</p>`}
+    ${Object.keys(kc).length ? `<div class="stat" style="margin-top:6px">${Object.keys(KINDS).filter(k => kc[k]).map(k => `<div>${KINDS[k].name} runs</div><div>${kc[k].n} · ~${Math.round(kc[k].ft)} ft</div>`).join("")}</div>` : ""}
+  </div>
+  <div class="f"><div class="p-h">Notes</div>
+    ${notes.length ? `<div class="notes-list">${notes.map(n => `<button class="note-btn" data-t="${n.t}" data-id="${n.id}"><b>${n.n}</b><span>${esc(n.title)}<small>${esc(n.text.length > 90 ? n.text.slice(0, 90) + "…" : n.text)}</small></span></button>`).join("")}</div>` : `<p class="empty">No notes yet. Select a unit or hose and type in its Notes box.</p>`}
+  </div>
+  <div class="f"><div class="p-h">Line types</div><div class="legend">${Object.values(KINDS).map(K => `<div>${legendSwatch(K)}${K.name}</div>`).join("")}</div></div>
+  <div class="f"><div class="p-h">How to</div><ul class="how">
+    <li>Add equipment from the library, then drag it into place. Nothing can be placed past either 25.</li>
+    <li>To add a hose, pick <b>Gas hose</b> (or a cord or water line) at the top of the library, then tap the item it starts from and the item it goes to. Keep tapping pairs to add more. Press Esc or tap the hose type again to stop.</li>
+    <li>Drag the white square on a selected item to resize it, or type the size.</li>
+    <li>Scroll or use +/− to zoom. Drag empty space to move around.</li>
+  </ul></div>`;
+  const setS = (id, key, numeric) => {
+    const el = document.getElementById(id);
+    el.addEventListener("focus", () => (armed = true));
+    el.addEventListener("input", () => {
+      let v = el.value; if (numeric) { v = parseFloat(v); if (!(v >= 10)) return; v = Math.min(200, v); }
+      if (armed) { pushHist(); armed = false; }
+      s[key] = v; renderViewSeg(); changed();
+    });
+  };
+  setS("s-top", "topLabel"); setS("s-bottom", "bottomLabel"); setS("s-depth", "depth", true);
+  panel.querySelectorAll(".note-btn").forEach(b => (b.onclick = () => { sel = { t: b.dataset.t, id: b.dataset.id }; renderPanel(); render(); }));
+}
+
+// ---------- Saved layouts (shared store, with an on-device fallback) ----------
+function localStore() {
+  const K = "dsp-layouts-v1", listeners = [];
+  const read = () => lsGet(K) || {};
+  const emit = () => { const all = read(); layouts = Object.entries(all).map(([id, d]) => ({ id, ...d })).sort((a, b) => b.updatedAt - a.updatedAt); listeners.forEach(f => f()); };
+  return {
+    kind: "local",
+    start(cb) { listeners.push(cb); emit(); },
+    async save(id, doc) { const all = read(); all[id] = doc; lsSet(K, all); emit(); },
+    async remove(id) { const all = read(); delete all[id]; lsSet(K, all); emit(); },
+    async get(id) { return layouts.find(l => l.id === id); }
+  };
+}
+function apiStore() {
+  const listeners = [];
+  const emit = () => listeners.forEach(f => f());
+  const fail = async r => { let m = ""; try { m = (await r.json()).error || ""; } catch {} throw new Error(m || `Server returned ${r.status}`); };
+  const sortL = () => layouts.sort((a, b) => b.updatedAt - a.updatedAt);
+  const st = {
+    kind: "api", error: null,
+    start(cb) { listeners.push(cb); st.refresh(); setInterval(() => { if (!document.hidden) st.refresh(); }, 30000); },
+    async refresh() {
+      try { const r = await fetch("/api/layouts", { headers: { accept: "application/json" } }); if (!r.ok) await fail(r); layouts = (await r.json()).layouts || []; sortL(); st.error = null; }
+      catch (e) { st.error = e.message; }
+      emit();
+    },
+    async get(id) { const r = await fetch(`/api/layouts/${encodeURIComponent(id)}`); if (!r.ok) await fail(r); return r.json(); },
+    async save(id, doc) {
+      const r = await fetch(`/api/layouts/${encodeURIComponent(id)}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(doc) });
+      if (!r.ok) await fail(r);
+      layouts = layouts.filter(l => l.id !== id); layouts.push({ id, name: doc.name, updatedAt: doc.updatedAt }); sortL(); emit();
+    },
+    async remove(id) {
+      const r = await fetch(`/api/layouts/${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!r.ok) await fail(r);
+      layouts = layouts.filter(l => l.id !== id); emit();
+    }
+  };
+  return st;
+}
+async function initStore() {
+  let ok = false;
+  if (location.protocol.startsWith("http")) {
+    try { const r = await fetch("/api/layouts", { headers: { accept: "application/json" } }); ok = r.ok && (r.headers.get("content-type") || "").includes("json"); } catch {}
+  }
+  store = ok ? apiStore() : localStore();
+  store.start(() => { if (!$("#layouts-pop").hidden) renderPop(); });
+}
+async function save(asCopy) {
+  if (saving || !store) { if (!store) toast("Still connecting — try again in a moment."); return; }
+  const name = (nameIn.value || "").trim() || "Untitled layout";
+  const id = (!asCopy && state.id) || uid();
+  const doc = { name: asCopy ? `${name} (copy)` : name, updatedAt: Date.now(), data: deep({ settings: state.settings, items: state.items, conns: state.conns }) };
+  saving = true; updateBar();
+  try {
+    await store.save(id, doc);
+    state.id = id; state.name = doc.name; dirty = false; nameIn.value = doc.name;
+    toast(store.kind !== "local" ? `Saved “${doc.name}”` : `Saved “${doc.name}” in this browser`);
+  } catch (e) {
+    toast(`Couldn't save: ${e && e.message ? e.message : "check your connection and try again."}`);
+  }
+  saving = false; saveDraft(); updateBar(); closePop();
+}
+$("#btn-save").onclick = () => save(false);
+function loadState(s) {
+  state = normalize(s); sel = null; hist = []; redo = []; dirty = false;
+  setMode("select"); renderViewSeg(); updateBar(); fit(); renderPanel(); saveDraft();
+}
+const pop = $("#layouts-pop");
+function closePop() { pop.hidden = true; pendingConfirm = null; $("#btn-layouts").setAttribute("aria-expanded", "false"); }
+$("#btn-layouts").onclick = e => { e.stopPropagation(); if (pop.hidden) { pop.hidden = false; $("#btn-layouts").setAttribute("aria-expanded", "true"); renderPop(); if (store && store.refresh) store.refresh(); } else closePop(); };
+document.addEventListener("pointerdown", e => { if (!pop.hidden && !pop.contains(e.target) && e.target !== $("#btn-layouts")) closePop(); });
+const fmtDate = t => new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+function renderPop() {
+  const pc = pendingConfirm, lost = `<span class="warn">Unsaved changes will be lost — click again</span>`;
+  const label = (act, id, text) => pc && pc.act === act && pc.id === id ? lost : text;
+  pop.innerHTML = `
+    <button class="pop-row" data-act="new">${label("new", null, "New blank layout")}</button>
+    <button class="pop-row" data-act="example">${label("example", null, "Load the example layout")}</button>
+    ${state.id ? `<button class="pop-row" data-act="copy">Save as a copy</button>` : ""}
+    <div class="pop-h">Saved layouts</div>
+    ${!store ? `<div class="pop-note">Loading…</div>` : layouts.length ? layouts.map(l => `
+      <div class="pop-item">
+        <button class="pop-row" data-act="open" data-id="${l.id}">${label("open", l.id, `${esc(l.name)}${l.id === state.id ? " · open" : ""}<small>${fmtDate(l.updatedAt)}</small>`)}</button>
+        <button class="x" data-act="del" data-id="${l.id}">${pc && pc.act === "del" && pc.id === l.id ? `<span class="warn">Delete?</span>` : "Delete"}</button>
+      </div>`).join("") : `<div class="pop-note">No saved layouts yet. Name this layout at the top and press Save.</div>`}
+    ${store && store.kind === "local" ? `<div class="pop-note">Shared saving isn't connected, so layouts are kept in this browser only. See the README to connect Cloudflare KV.</div>` : ""}
+    ${store && store.error ? `<div class="pop-note warn">Couldn't load saved layouts: ${esc(store.error)}</div>` : ""}`;
+}
+pop.addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  e.stopPropagation();
+  const act = b.dataset.act, id = b.dataset.id || null;
+  const needsConfirm = (act === "new" || act === "example" || act === "open" || act === "del");
+  if (needsConfirm && (act === "del" || dirty) && !(pendingConfirm && pendingConfirm.act === act && pendingConfirm.id === id)) {
+    pendingConfirm = { act, id }; renderPop(); return;
+  }
+  pendingConfirm = null;
+  if (act === "new") { loadState({ id: null, name: "Untitled layout", settings: { ...state.settings }, items: [], conns: [] }); closePop(); }
+  else if (act === "example") { loadState(exampleState()); closePop(); }
+  else if (act === "copy") { save(true); }
+  else if (act === "open") {
+    try { const l = await store.get(id); if (l) loadState({ id, name: l.name, ...deep(l.data || {}) }); else toast("That layout no longer exists."); }
+    catch (err) { toast(`Couldn't open that layout: ${err.message}`); }
+    closePop();
+  }
+  else if (act === "del") {
+    try { await store.remove(id); if (state.id === id) { state.id = null; dirty = true; updateBar(); } toast("Layout deleted"); }
+    catch { toast("Couldn't delete that layout."); }
+    renderPop();
+  }
+});
+
+// ---------- Image export ----------
+function wrap(text, n) {
+  const words = text.replace(/\s*\n\s*/g, " · ").split(/\s+/), out = []; let line = "";
+  words.forEach(w => { if ((line + " " + w).trim().length > n && line) { out.push(line); line = w; } else line = (line + " " + w).trim(); });
+  if (line) out.push(line); return out;
+}
+async function exportImage() {
+  const ext = extent(state.settings.view), pad = 3, headH = 13, fsK = 2.1, lh = fsK * 1.45;
+  const notes = noteEntries(), cpl = Math.floor((ext.w - pad * 2 - 4) / (fsK * 0.47));
+  const lines = []; notes.forEach(n => wrap(`${n.title}: ${n.text}`, cpl).forEach((t, i) => lines.push({ t, n: i === 0 ? n.n : null })));
+  const keyH = notes.length ? pad * 2 + 4 + lines.length * lh : 0;
+  const vb = { x: ext.x, y: ext.y - headH, w: ext.w, h: ext.h + headH + keyH };
+  const S = Math.min(7, 4200 / vb.w), W = Math.round(vb.w * S), H = Math.round(vb.h * S);
+  const used = Object.keys(KINDS).filter(k => state.conns.some(c => c.kind === k));
+  let legend = "", lx = vb.x + vb.w - pad;
+  used.slice().reverse().forEach(k => {
+    const K = KINDS[k], tw = K.name.length * 1.1 + 1;
+    legend += `<text x="${lx}" y="${vb.y + 8.2}" font-family="${SVG_FONT}" font-size="2.2" fill="#dfe6e2" text-anchor="end">${K.name}</text>`;
+    lx -= tw + 0.8;
+    legend += `<line x1="${lx - 5}" y1="${vb.y + 7.5}" x2="${lx}" y2="${vb.y + 7.5}" stroke="${K.color}" stroke-width="${K.w}" ${K.dash ? `stroke-dasharray="${K.dash}"` : ""}/>`;
+    lx -= 8;
+  });
+  const viewName = state.settings.view === "both" ? "Both sidelines" : state.settings.view === "top" ? state.settings.topLabel : state.settings.bottomLabel;
+  let key = "";
+  if (notes.length) {
+    const ky = ext.y + ext.h;
+    key += `<rect x="${vb.x}" y="${ky}" width="${vb.w}" height="${keyH}" fill="#141b17"/>`;
+    key += `<text x="${vb.x + pad}" y="${ky + pad + 2.2}" font-family="${SVG_FONT}" font-weight="700" font-size="2.6" fill="#ffffff">NOTES</text>`;
+    lines.forEach((l, i) => {
+      const y = ky + pad + 4 + (i + 0.8) * lh;
+      if (l.n) key += badge(vb.x + pad + 1.2, y - fsK * 0.35, l.n);
+      key += `<text x="${vb.x + pad + 3.4}" y="${y}" font-family="Arial, Helvetica, sans-serif" font-size="${fsK}" fill="#e9eeeb">${esc(l.t)}</text>`;
+    });
+  }
+  const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}">
+    <rect x="${vb.x}" y="${vb.y}" width="${vb.w}" height="${vb.h}" fill="#1f2a24"/>
+    <svg x="${ext.x}" y="${ext.y}" width="${ext.w}" height="${ext.h}" viewBox="${ext.x} ${ext.y} ${ext.w} ${ext.h}" overflow="hidden">${sceneMarkup(false)}</svg>
+    <rect x="${vb.x}" y="${vb.y}" width="${vb.w}" height="${headH}" fill="#141b17"/>
+    <text x="${vb.x + pad}" y="${vb.y + 6}" font-family="${SVG_FONT}" font-weight="700" font-size="4.4" fill="#ffffff">${esc(state.name || "Untitled layout")}</text>
+    <text x="${vb.x + pad}" y="${vb.y + 10.2}" font-family="${SVG_FONT}" font-size="2.3" fill="#a9b6ae">${esc(viewName)} · ${esc(new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }))} · Red lines mark the 25-yard cutoffs</text>
+    ${legend}${key}
+  </svg>`;
+  const btn = $("#btn-export"); btn.disabled = true; btn.textContent = "Exporting…";
+  try {
+    const img = new Image();
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgStr);
+    await img.decode();
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    cv.getContext("2d").drawImage(img, 0, 0, W, H);
+    const blob = await new Promise((res, rej) => cv.toBlob(b => (b ? res(b) : rej(new Error("png"))), "image/png"));
+    const fname = ((state.name || "sideline-layout").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-") || "sideline-layout") + ".png";
+    const url = URL.createObjectURL(blob), link = document.createElement("a");
+    link.href = url; link.download = fname; document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast("Image downloaded");
+  } catch (e) {
+    toast("Couldn't build the image. Try again.");
+  }
+  btn.disabled = false; btn.textContent = "Export image";
+}
+$("#btn-export").onclick = exportImage;
+$("#img-close").onclick = () => ($("#img-overlay").hidden = true);
+
+// ---------- Boot ----------
+renderLib(); renderViewSeg(); updateBar(); fit(); renderPanel();
+requestAnimationFrame(() => render());
+initStore();
+})();
+</script>
+</body>
+</html>
