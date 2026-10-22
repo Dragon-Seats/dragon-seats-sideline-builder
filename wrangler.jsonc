@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dragon-seats-sideline-builder",
+  "main": "worker.js",
+  "compatibility_date": "2025-09-01",
+  // Serves index.html. Files listed in .assetsignore are kept private.
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS"
+  }
+  // ---- Shared saved layouts ----
+  // 1. Cloudflare dashboard: Storage & Databases > KV > Create a namespace (name it sideline-layouts).
+  // 2. Copy its ID, paste it below, delete the two slashes at the start of each line from the comma down,
+  //    then commit. Until then the planner still works but saves layouts in each person's browser.
+  // ,
+  // "kv_namespaces": [
+  //   { "binding": "LAYOUTS", "id": "PASTE_KV_NAMESPACE_ID_HERE" }
+  // ]
+}
